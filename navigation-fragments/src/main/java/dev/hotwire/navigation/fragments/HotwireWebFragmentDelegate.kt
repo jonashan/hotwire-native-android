@@ -1,6 +1,7 @@
 package dev.hotwire.navigation.fragments
 
 import android.content.Intent
+import android.view.ViewGroup
 import android.webkit.HttpAuthHandler
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
@@ -76,16 +77,6 @@ internal class HotwireWebFragmentDelegate(
     fun prepareNavigation(onReady: () -> Unit) {
         session.removeCallback(this)
         detachWebView(onReady)
-    }
-
-    /**
-     * Should be called by the implementing Fragment during
-     * [androidx.fragment.app.Fragment.onViewCreated].
-     */
-    fun onViewCreated() {
-        if (session.isRenderProcessGone) {
-            navigator.createNewSession()
-        }
     }
 
     /**
@@ -250,7 +241,14 @@ internal class HotwireWebFragmentDelegate(
     }
 
     override fun onRenderProcessGone() {
-        navigator.route(location, VisitOptions(action = VisitAction.REPLACE))
+        // Detach the WebView right away so the navigator can replace its
+        // session, then visit this destination's location with the new WebView.
+        val webView = webView
+        (webView.parent as? ViewGroup)?.removeView(webView)
+        callback.onWebViewDetached(webView)
+
+        initNavigationVisit()
+        initWebChromeClient()
     }
 
     override fun requestFailedWithError(visitHasCachedSnapshot: Boolean, error: VisitError) {
@@ -301,6 +299,7 @@ internal class HotwireWebFragmentDelegate(
     }
 
     private fun initNavigationVisit() {
+        navigator.replaceSessionIfRenderProcessGone()
         initView()
         attachWebViewAndVisit()
     }

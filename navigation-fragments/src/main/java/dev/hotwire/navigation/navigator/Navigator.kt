@@ -1,6 +1,7 @@
 package dev.hotwire.navigation.navigator
 
 import android.os.Bundle
+import android.view.ViewGroup
 import androidx.annotation.IdRes
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
@@ -69,7 +70,23 @@ class Navigator(
     var session = createNewSession()
         private set
 
-    internal fun createNewSession() = Session(
+    /**
+     * A WebView whose render process is gone cannot be reused. Removes it from
+     * its parent, destroys it, and replaces the [Session] with a new instance.
+     */
+    internal fun replaceSessionIfRenderProcessGone() {
+        if (!session.isRenderProcessGone) return
+
+        logEvent("replaceSessionIfRenderProcessGone")
+
+        val webView = session.webView
+        (webView.parent as? ViewGroup)?.removeView(webView)
+        webView.destroy()
+
+        session = createNewSession()
+    }
+
+    private fun createNewSession() = Session(
         sessionName = configuration.name,
         activity = activity,
         webView = Hotwire.config.makeCustomWebView(activity)
