@@ -106,6 +106,21 @@ class NavigatorHostTest {
         assertThat(oldActivity.get()).isNull()
     }
 
+    // Every host instance creates its own Navigator, Session and WebView, including the host
+    // that the FragmentManager restores when the Activity is recreated.
+    @Test
+    fun `recreating the activity destroys the previous host's WebView`() {
+        val controller = Robolectric.buildActivity(HostActivity::class.java).setup()
+        val oldWebView = controller.get().navigatorHost.navigator.session.webView
+
+        controller.recreate()
+        val newWebView = controller.get().navigatorHost.navigator.session.webView
+
+        assertThat(newWebView).isNotSameAs(oldWebView)
+        assertThat(shadowOf(oldWebView).wasDestroyCalled()).isTrue()
+        assertThat(shadowOf(newWebView).wasDestroyCalled()).isFalse()
+    }
+
     companion object {
         private const val ATTACKER_URL = "https://attacker.example/steal"
         private val HOST_ID = View.generateViewId()

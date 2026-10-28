@@ -2,6 +2,7 @@ package dev.hotwire.navigation.navigator
 
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.Companion.PROTECTED
 import androidx.core.net.toUri
@@ -50,6 +51,15 @@ open class NavigatorHost : NavHostFragment(), FragmentOnAttachListener {
 
     override fun onDestroy() {
         activity.delegate.unregisterNavigatorHost(this)
+
+        // Every host instance creates its own WebView, which is never used again once the
+        // host is destroyed (including when the Activity is recreated). Destroy it so its page
+        // stops running now, rather than whenever the WebView is garbage collected.
+        navigator.session.webView.apply {
+            (parent as? ViewGroup)?.removeView(this)
+            destroy()
+        }
+
         super.onDestroy()
     }
 
