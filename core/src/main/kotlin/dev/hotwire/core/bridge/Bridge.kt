@@ -16,10 +16,16 @@ private const val bridgeJavascriptInterface = "BridgeComponentsNative"
 class Bridge internal constructor(webView: WebView) {
     private var componentsAreRegistered: Boolean = false
     private val webViewRef: WeakReference<WebView>
+    private var delegateRef = WeakReference<BridgeDelegate<*>>(null)
 
     internal val webView: WebView? get() = webViewRef.get()
     internal var repository = Repository()
-    internal var delegate: BridgeDelegate<*>? = null
+
+    // Bridge instances are held statically, so hold the delegate (and
+    // its destination) weakly to avoid leaking a destroyed destination.
+    internal var delegate: BridgeDelegate<*>?
+        get() = delegateRef.get()
+        set(value) { delegateRef = WeakReference(value) }
 
     init {
         // Use a weak reference in case the WebView is no longer being

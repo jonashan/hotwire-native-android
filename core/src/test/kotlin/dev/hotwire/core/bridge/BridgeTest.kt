@@ -7,9 +7,11 @@ import com.nhaarman.mockito_kotlin.eq
 import com.nhaarman.mockito_kotlin.mock
 import com.nhaarman.mockito_kotlin.whenever
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.verify
+import java.lang.ref.WeakReference
 
 class BridgeTest {
     private lateinit var bridge: Bridge
@@ -95,6 +97,17 @@ class BridgeTest {
     }
 
     @Test
+    fun delegateIsNotRetained() {
+        val delegateRef = setNewDelegate()
+
+        repeat(10) {
+            if (delegateRef.get() != null) System.gc()
+        }
+
+        assertNull(bridge.delegate)
+    }
+
+    @Test
     fun userScript() {
         whenever(webView.context).thenReturn(context)
 
@@ -132,5 +145,17 @@ class BridgeTest {
     @Test
     fun sanitizeFunctionName() {
         assertEquals(bridge.sanitizeFunctionName("replyWith()"), "replyWith")
+    }
+
+    // Creates the delegate in its own function, so no local variable
+    // in the test keeps it reachable.
+    private fun setNewDelegate(): WeakReference<BridgeDelegate<*>> {
+        val delegate = BridgeDelegate(
+            location = "https://37signals.com",
+            destination = TestData.AppBridgeDestination(),
+            componentFactories = emptyList()
+        )
+        bridge.delegate = delegate
+        return WeakReference(delegate)
     }
 }

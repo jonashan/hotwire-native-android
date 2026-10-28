@@ -6,6 +6,10 @@ import androidx.lifecycle.LifecycleOwner
 import dev.hotwire.core.logging.logDebug
 import dev.hotwire.core.logging.logWarning
 
+/**
+ * The destination must keep its own reference to this delegate while it's in
+ * use, since the WebView's [Bridge] only holds it weakly.
+ */
 @Suppress("unused")
 class BridgeDelegate<D : BridgeDestination>(
     val location: String,

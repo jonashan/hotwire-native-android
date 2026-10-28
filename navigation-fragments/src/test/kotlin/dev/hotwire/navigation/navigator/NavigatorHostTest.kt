@@ -2,14 +2,28 @@ package dev.hotwire.navigation.navigator
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Looper
+import android.view.View
 import androidx.core.os.bundleOf
+import androidx.fragment.app.FragmentContainerView
+import dev.hotwire.core.bridge.BridgeComponent
+import dev.hotwire.core.bridge.BridgeComponentFactory
+import dev.hotwire.core.bridge.BridgeDelegate
+import dev.hotwire.core.bridge.Message
+import dev.hotwire.core.config.Hotwire
 import dev.hotwire.navigation.activities.HotwireActivity
+import dev.hotwire.navigation.config.HotwireNavigation
+import dev.hotwire.navigation.config.registerBridgeComponents
+import dev.hotwire.navigation.destinations.HotwireDestination
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import java.lang.ref.WeakReference
 
 @RunWith(RobolectricTestRunner::class)
 class NavigatorHostTest {
@@ -20,6 +34,11 @@ class NavigatorHostTest {
     @Before
     fun setUp() {
         host = NavigatorHost()
+    }
+
+    @After
+    fun tearDown() {
+        HotwireNavigation.registeredBridgeComponentFactories = emptyList()
     }
 
     @Test
@@ -68,8 +87,28 @@ class NavigatorHostTest {
         assertThat(survivingArgs).doesNotContain(ATTACKER_URL)
     }
 
+    // Bridge instances are held statically and are only created when bridge components
+    // are registered.
+    @Test
+    fun `recreating the activity releases the previous activity`() {
+        Hotwire.registerBridgeComponents(BridgeComponentFactory("test", ::TestComponent))
+        val controller = Robolectric.buildActivity(HostActivity::class.java).setup()
+        shadowOf(Looper.getMainLooper()).idle()
+        val oldActivity = WeakReference(controller.get())
+
+        controller.recreate()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        repeat(10) {
+            if (oldActivity.get() != null) System.gc()
+        }
+
+        assertThat(oldActivity.get()).isNull()
+    }
+
     companion object {
         private const val ATTACKER_URL = "https://attacker.example/steal"
+        private val HOST_ID = View.generateViewId()
     }
 
     private class TestActivity : HotwireActivity() {
@@ -80,5 +119,32 @@ class NavigatorHostTest {
         )
 
         override fun navigatorConfigurations(): List<NavigatorConfiguration> = listOf(navConfig)
+    }
+
+    class TestComponent(name: String, delegate: BridgeDelegate<HotwireDestination>) :
+        BridgeComponent<HotwireDestination>(name, delegate) {
+        override fun onReceive(message: Message) {}
+    }
+
+    class HostActivity : HotwireActivity() {
+        val navigatorHost get() = supportFragmentManager.findFragmentById(HOST_ID) as NavigatorHost
+
+        override fun navigatorConfigurations() = listOf(
+            NavigatorConfiguration(
+                name = "test",
+                startLocation = "https://example.com/start",
+                navigatorHostId = HOST_ID
+            )
+        )
+
+        override fun onCreate(savedInstanceState: Bundle?) {
+            setTheme(androidx.appcompat.R.style.Theme_AppCompat_Light_NoActionBar)
+            super.onCreate(savedInstanceState)
+            setContentView(FragmentContainerView(this).apply { id = HOST_ID })
+
+            if (savedInstanceState == null) {
+                supportFragmentManager.beginTransaction().add(HOST_ID, NavigatorHost()).commitNow()
+            }
+        }
     }
 }
